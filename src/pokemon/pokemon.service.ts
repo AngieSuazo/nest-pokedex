@@ -1,16 +1,26 @@
 import { BadGatewayException, BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ConfigService } from '@nestjs/config';
 import { Model, isValidObjectId } from 'mongoose';
 import { Pokemon } from './entities/pokemon.entity';
 import { CreatePokemonDto } from './dto/create-pokemon.dto';
 import { UpdatePokemonDto } from './dto/update-pokemon.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+
 
 @Injectable()
 export class PokemonService {
+
+  private defaultLimit: number;
+
   constructor(
     @InjectModel(Pokemon.name)
-    private readonly pokemonModel: Model<Pokemon>
-  ){}
+    private readonly pokemonModel: Model<Pokemon>,
+
+    private readonly configService: ConfigService,
+  ){
+    this.defaultLimit = configService.get<number>('defaultlimit');     
+  }
 
 
   async create(createPokemonDto: CreatePokemonDto) {
@@ -25,8 +35,19 @@ export class PokemonService {
 
   }
 
-  findAll() {
-    return `This action returns all pokemon`;
+  findAll(paginationDto: PaginationDto) {
+    //console.log(+process.env.DEFAULT_LIMIT);
+    
+    const  {limit = this.defaultLimit, offset=0} =paginationDto;
+    return this.pokemonModel.find()
+      .limit(limit)
+      .skip(offset)
+      .sort({
+        no:1 //ordena ascendente
+      })
+      .select('-__v'); //nose vea esa columna __v
+
+
   }
 
   async findOne(term:string) {
@@ -36,7 +57,7 @@ export class PokemonService {
       pokemon =await this.pokemonModel.findOne({no: term});
     }
 
-    //MongoI
+    //MongoID
     if ( !pokemon && isValidObjectId(term)){ //No evalue si ya tenemos un pokemon 
       pokemon=await this.pokemonModel.findById(term);
     }
@@ -61,7 +82,7 @@ export class PokemonService {
     try {
       await pokemon.updateOne(updatePokemonDto);
       return {...pokemon.toJSON(), ...updatePokemonDto};
-      //updatePokemonDto tiene la info actualizada, espacir el pokemon JSON es decir espacir todas las propiedades que tiene
+      //updatePokemonDto tiene la info actualizada, esparcir el pokemon JSON es decir esparcir todas las propiedades que tiene
       //sobreescribir las propiedades (actualizadas) que tiene el pokemonDto
       
     } catch (error) {
